@@ -1,0 +1,7 @@
+target
+docs/captures
+.env
+
+# Build artifact — embeds the compiled WASM, which contains the extracted keys.
+# Rebuild with: python3 bundle.py
+index.bundle.html

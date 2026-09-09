@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alpha Progression</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0a0a0a;
+      --green:   #39ff14;
+      --dim:     #1c5c0a;
+      --muted:   #4a8a30;
+      --border:  #2a6a10;
+      --text:    #c8ffc8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      /* subtle scanlines */
+      background-image: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.18) 2px,
+        rgba(0,0,0,0.18) 4px
+      );
+    }
+
+    /* ── Login ─────────────────────────────────────────── */
+    #login-view {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-card {
+      border: 2px solid var(--green);
+      padding: 2rem 2.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .login-card h1 {
+      color: var(--green);
+      font-size: 1.1rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px var(--green);
+      margin-bottom: 0.2rem;
+    }
+
+    .login-card .subtitle {
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+      font-size: 0.8rem;
+    }
+
+    .field { margin-bottom: 1rem; }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.3rem;
+    }
+
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      background: #000;
+      border: 1px solid var(--border);
+      color: var(--green);
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.5rem 0.6rem;
+      outline: none;
+      caret-color: var(--green);
+    }
+
+    input::placeholder { color: var(--dim); }
+    input:focus { border-color: var(--green); box-shadow: 0 0 6px var(--dim); }
+
+    button {
+      width: 100%;
+      background: #000;
+      color: var(--green);
+      border: 2px solid var(--green);
+      font-family: inherit;
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.6rem;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      text-shadow: 0 0 6px var(--green);
+    }
+
+    button:hover { background: var(--dim); }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    #login-error {
+      margin-top: 0.75rem;
+      color: #ff4444;
+      font-size: 0.8rem;
+      min-height: 1em;
+    }
+
+    /* ── Workouts ──────────────────────────────────────── */
+    #workouts-view { display: none; flex: 1; flex-direction: column; }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      color: var(--green);
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px var(--green);
+    }
+
+    .user-badge { color: var(--muted); font-size: 0.75rem; }
+
+    .workouts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
+      padding: 1.2rem 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      align-content: start;
+    }
+
+    .workout-card { border: 1px solid var(--border); }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      background: #050f02;
+    }
+
+    .card-header h2 {
+      font-size: 0.85rem;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .workout-date {
+      font-size: 0.7rem;
+      color: var(--muted);
+      white-space: nowrap;
+      margin-left: 0.5rem;
+    }
+
+    .exercise-row {
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid var(--dim);
+    }
+
+    .exercise-row:last-child { border-bottom: none; }
+
+    .ex-name {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.25rem;
+    }
+
+    .sets-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .set-chip {
+      font-size: 0.72rem;
+      border: 1px solid var(--border);
+      padding: 0.1rem 0.4rem;
+      color: var(--text);
+    }
+
+    .set-chip.done { border-color: var(--green); color: var(--green); }
+
+    /* ── States ────────────────────────────────────────── */
+    .state-msg {
+      color: var(--muted);
+      padding: 2rem;
+      font-size: 0.8rem;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+    .blink { animation: blink 1s step-end infinite; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────── -->
+<div id="login-view">
+  <div class="login-card">
+    <h1>Alpha Progression</h1>
+    <div class="subtitle">// workout terminal v1.0</div>
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="user@example.com" autocomplete="email">
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="********" autocomplete="current-password">
+    </div>
+
+    <button id="login-btn">[ Sign In ]</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── Workouts ───────────────────────────────────────────── -->
+<div id="workouts-view">
+  <header>
+    <h1>&gt; Alpha Progression</h1>
+    <span class="user-badge" id="user-email"></span>
+  </header>
+  <div class="workouts-grid" id="workouts-grid">
+    <div class="state-msg">loading<span class="blink">_</span></div>
+  </div>
+</div>
+
+<script type="module">
+  import init, { Client } from './crates/alpha-progression-wasm/pkg/alpha_progression_wasm.js';
+
+  await init();
+  const client = new Client();
+
+  // ── Login ──────────────────────────────────────────────────
+  const loginBtn  = document.getElementById('login-btn');
+  const emailEl   = document.getElementById('email');
+  const passEl    = document.getElementById('password');
+  const errorEl   = document.getElementById('login-error');
+
+  [emailEl, passEl].forEach(el =>
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); })
+  );
+
+  loginBtn.addEventListener('click', async () => {
+    errorEl.textContent = '';
+    loginBtn.disabled = true;
+    loginBtn.textContent = '[ Connecting... ]';
+
+    try {
+      const session = await client.login(emailEl.value.trim(), passEl.value);
+      document.getElementById('user-email').textContent = session.email;
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('workouts-view').style.display = 'flex';
+      loadWorkouts(session);
+    } catch (e) {
+      errorEl.textContent = String(e);
+      loginBtn.disabled = false;
+      loginBtn.textContent = '[ Sign In ]';
+    }
+  });
+
+  // ── Load workouts ──────────────────────────────────────────
+  async function loadWorkouts(session) {
+    const grid = document.getElementById('workouts-grid');
+
+    try {
+      // 1. Get all doc IDs from the changes feed
+      const changes = await client.get_changes(session, '0', 500);
+
+      // 2. Filter to workout IDs: timestamp-randomchars pattern
+      const workoutIds = changes.results
+        .map(r => r.id)
+        .filter(id => /^\d{10,}-[a-z]+$/.test(id));
+
+      if (workoutIds.length === 0) {
+        grid.innerHTML = '<div class="state-msg">No workouts found.</div>';
+        return;
+      }
+
+      // 3. Fetch all workouts in parallel
+      const workouts = await Promise.all(
+        workoutIds.map(id => client.get_workout(session, id))
+      );
+
+      // 4. Sort newest first
+      workouts.sort((a, b) => {
+        const tsA = parseInt(a._id);
+        const tsB = parseInt(b._id);
+        return tsB - tsA;
+      });
+
+      // 5. Render
+      grid.innerHTML = workouts.map(renderWorkout).join('');
+
+    } catch (e) {
+      grid.innerHTML = `<div class="state-msg">Error loading workouts: ${e}</div>`;
+    }
+  }
+
+  // ── Render helpers ─────────────────────────────────────────
+  function renderWorkout(workout) {
+    const ts   = parseInt(workout._id);
+    const date = new Date(ts).toLocaleDateString(undefined, {
+      weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+    });
+
+    const exercisesHtml = (workout.exercises || []).map(ex => {
+      const num  = ex.exerciseId.replace('exercise-', '');
+      const name = `Exercise #${num}`;
+
+      const setsHtml = (ex.sets || []).map(set => {
+        const label = `${set.reps} × ${set.weight} ${set.weightUnit}`;
+        const done  = set.completed ? 'done' : '';
+        return `<span class="set-chip ${done}">${label}</span>`;
+      }).join('');
+
+      return `
+        <div class="exercise-row">
+          <span class="ex-name">${name}</span>
+          <div class="sets-row">${setsHtml || '<span style="color:var(--muted);font-size:.75rem">no sets</span>'}</div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="workout-card">
+        <div class="card-header">
+          <h2>${escHtml(workout.name)}</h2>
+          <span class="workout-date">${date}</span>
+        </div>
+        <div class="exercises">
+          ${exercisesHtml || '<div class="exercise-row" style="color:var(--muted);font-size:.8rem">No exercises</div>'}
+        </div>
+      </div>`;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>
