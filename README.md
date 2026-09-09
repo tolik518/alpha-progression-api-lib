@@ -10,16 +10,59 @@ Not affiliated with, endorsed by, or supported by Alpha Progression.
 ## What it does
 
 Auth (register / login) goes through `alphaprogression.com/api/v3/`. Everything
-else — workouts, measurements, settings — lives in a per-user CouchDB database on
-IBM Cloudant that the app syncs with via PouchDB replication. This crate wraps both.
+else - workouts, measurements, settings - lives in a per-user CouchDB database on
+IBM Cloudant that the app syncs with via PouchDB replication. This crate can talk to both.
 
 ```rust
 let client = alpha_progression::AlphaProgressionClient::new();
+
 let session = client.login("you@example.com", "hunter2").await?;
+// Session { uuid: "<64 hex>", email: "you@example.com", token: "<64 hex>" }
+// The token doubles as the Cloudant password, so this is all you need.
 
 let info = client.db_info(&session).await?;
-let workout = client.get_workout(&session, "1788882599948-iajevnjn").await?;
+println!("{} documents", info.doc_count);
+// DbInfo { db_name: "<uuid>", doc_count: 27, doc_del_count: 0,
+//          update_seq: "28-g1AAAAB5eJzLYWBgYMxgTmFQS0lK..." }
+
+// _changes lists every doc in the database: profile, settings, the
+// measurement series, and one per workout. "0" starts from the beginning.
+let changes = client.get_changes(&session, "0", 100).await?;
+// ChangesResponse { results: [...], last_seq: "28-g1AAAAB5...", pending: 0 }
+//
+// Each result is a ChangeEntry { id, seq, changes: [RevInfo { rev }] }:
+//   id: "profile"                 rev: "1-6f2c..."
+//   id: "settings"                rev: "2-b29a..."
+//   id: "measurement-bodyweight"  rev: "9-a04b..."
+//   id: "1788882599948-iajevnjn"  rev: "24-bb3b..."   <- a workout
+
+// Workout doc IDs are {unix_millis}-{random}, assigned by the app when the
+// workout is created, so pick them out of the list rather than guess one.
+let workouts = changes
+    .results
+    .iter()
+    .filter(|c| matches!(c.id.split_once('-'), Some((ms, _)) if ms.parse::<u64>().is_ok()));
+
+for entry in workouts {
+    let workout = client.get_workout(&session, &entry.id).await?;
+    println!("{}: {} exercises", workout.name, workout.exercises.len());
+    // WorkoutDoc {
+    //     id: "1788882599948-iajevnjn",
+    //     rev: Some("24-bb3b..."),
+    //     name: "Standalone workout",
+    //     exercises: [Exercise {
+    //         id: "1788882599945",
+    //         exercise_id: "exercise-50",   // the app's own exercise catalogue
+    //         reps_target: Some(10),
+    //         sets: [ExerciseSet { reps: 10, weight: 12.5, weight_unit: "kg",
+    //                              completed: 1788882608476 }],
+    //     }],
+    // }
+}
 ```
+
+`get_changes` takes a `since` sequence, so passing back `changes.last_seq` on the next
+call returns only what changed since — the same thing the app does to sync.
 
 ## Setup
 
@@ -79,14 +122,19 @@ cargo test -p alpha-progression -- --ignored --nocapture
 | --- | --- |
 | `alpha-progression/` | core library, native + wasm |
 | `alpha-progression-wasm/` | `wasm-bindgen` wrapper |
-| `example/` | browser client — `index.html`, plus the generated standalone bundle |
-| `tools/extract-keys.mjs` | resolves the apiKeys out of an app bundle |
+| `example/` | browser client demo: `index.html` |
+| `tools/extract-keys.mjs` | helper to get the apiKeys from the app bundle |
 | `docs/extracting-api-keys.md` | how to get the keys and salt out of the app |
-| `docs/alpha-progression-reference.md` | full API reference — routes, headers, bodies |
+| `docs/alpha-progression-reference.md` | full API reference - routes, headers, bodies |
 
 ## Disclaimer
 
 This is an interoperability and personal-data-portability project, published for
 educational purposes. It talks to a private API that can change or break without
-notice. Using it may conflict with Alpha Progression's terms of service — that's your
-call to make. Use it with your own account and your own data.
+notice. Using it may conflict with Alpha Progression's terms of service - that's your
+call to make. Use it with your own account and your own data. **No secrets** are shared
+inside of the repository.
+
+## AI disclosure
+
+The library was written using Claude Code after the API was reverse engineered.
